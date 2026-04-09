@@ -36,7 +36,6 @@
             display: flex;
             flex-direction: column;
             min-height: 620px;
-            /* 整体向上移动 39 像素 */
             transform: translateY(-39px);
         }
 
@@ -166,13 +165,14 @@
             backdrop-filter: blur(4px);
         }
 
+        /* 删除小叉叉 - 缩小尺寸 */
         .delete-overlay {
             position: fixed;
             background: rgba(30, 33, 50, 0.95);
-            backdrop-filter: blur(12px);
-            border-radius: 40px;
-            width: 48px;
-            height: 48px;
+            backdrop-filter: blur(8px);
+            border-radius: 24px;
+            width: 30px;
+            height: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -182,7 +182,7 @@
             transition: opacity 0.2s, transform 0.2s;
             pointer-events: none;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 80, 80, 0.5);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 80, 80, 0.5);
         }
         .delete-overlay.show {
             opacity: 1;
@@ -190,10 +190,10 @@
             pointer-events: auto;
         }
         .delete-overlay .delete-icon {
-            font-size: 28px;
+            font-size: 18px;
             font-weight: bold;
             color: #ff5a5a;
-            text-shadow: 0 0 5px rgba(255,0,0,0.5);
+            text-shadow: 0 0 3px rgba(255,0,0,0.5);
         }
 
         .confirm-pop {
@@ -322,7 +322,7 @@
 <body>
 <div class="container" id="app">
     <div class="brand">
-        <div class="logo" id="mainLogo" title="双击添加网站 · 本地优先">aiksee</div>
+        <div class="logo" id="mainLogo" title="双击图标">aiksee</div>
         <div class="slogan">见 未 见 · 知 未 知 · 行 未 行</div>
     </div>
     
@@ -361,7 +361,7 @@
     (function(){
         "use strict";
 
-        const STORAGE_KEY = 'aiksee_links_v15';
+        const STORAGE_KEY = 'aiksee_links_v16';
         let links = [];
 
         const defaultLinks = [
@@ -400,8 +400,8 @@
         function showDeleteOverlay(x, y, index, title) {
             pendingDeleteIndex = index;
             pendingDeleteTitle = title;
-            deleteOverlay.style.left = (x + 30) + 'px';
-            deleteOverlay.style.top = (y - 30) + 'px';
+            deleteOverlay.style.left = (x + 25) + 'px';
+            deleteOverlay.style.top = (y - 25) + 'px';
             deleteOverlay.classList.add('show');
         }
         
@@ -485,6 +485,21 @@
             return `hsl(${hue}, 85%, 60%)`;
         }
         
+        // 全局阻止手机端长按浏览器菜单
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+        
+        // 阻止所有触摸点的默认长按行为
+        document.body.addEventListener('touchstart', function(e) {
+            // 不阻止所有，只阻止可能导致菜单的
+            if (e.target.closest('.shortcut')) {
+                // 允许长按检测，但不让浏览器弹出菜单
+                // 通过 css -webkit-touch-callout 已经处理了一部分
+            }
+        }, { passive: false });
+        
         function loadLinks() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
@@ -530,7 +545,7 @@
             if (links.length === 0) {
                 const emptyDiv = document.createElement('div');
                 emptyDiv.className = 'empty-hint';
-                emptyDiv.innerText = '✨ 双击上方 “aiksee” 添加网站 ✨';
+                emptyDiv.innerText = '✨ 双击 “aiksee” 添加网站 ✨';
                 container.appendChild(emptyDiv);
                 return;
             }
@@ -577,17 +592,12 @@
                 card.addEventListener('mouseenter', applyHoverStyle);
                 card.addEventListener('mouseleave', removeHoverStyle);
                 
-                // 触摸事件（手机端）- 应用悬停样式
+                // 触摸事件（手机端）- 应用悬停样式，但不阻止长按
                 card.addEventListener('touchstart', (e) => {
                     applyHoverStyle();
                 }, { passive: true });
                 card.addEventListener('touchend', removeHoverStyle);
                 card.addEventListener('touchcancel', removeHoverStyle);
-                
-                // 阻止右键菜单（电脑端）
-                card.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                });
                 
                 // 点击打开链接
                 card.addEventListener('click', (e) => {
@@ -605,9 +615,9 @@
                     pressStartY = clientY;
                     pressTimer = setTimeout(() => {
                         const rect = card.getBoundingClientRect();
-                        showDeleteOverlay(rect.right - 40, rect.top + 10, idx, link.title);
+                        showDeleteOverlay(rect.right - 30, rect.top + 5, idx, link.title);
                         pressTimer = null;
-                    }, 800); // 800ms 触发删除
+                    }, 800);
                 };
                 
                 const cancelPress = () => {
@@ -625,7 +635,7 @@
                 card.addEventListener('mouseup', cancelPress);
                 card.addEventListener('mouseleave', cancelPress);
                 
-                // 手机端触摸事件（不阻止默认行为，让长按能正常触发）
+                // 手机端触摸事件
                 card.addEventListener('touchstart', (e) => {
                     const touch = e.touches[0];
                     startPress(touch.clientX, touch.clientY);
