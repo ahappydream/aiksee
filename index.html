@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
@@ -69,7 +69,7 @@
             font-size: 0.85rem;
             color: #ffffff;
             margin-top: 6px;
-            letter-spacing: 3px;
+            letter-spacing: 2px;
             font-weight: 300;
         }
 
@@ -82,7 +82,7 @@
 
         .shortcuts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(49px, 1fr));
             gap: 20px 33px;
             margin: 8px 0 0;
         }
@@ -121,11 +121,13 @@
             pointer-events: none;
             text-transform: uppercase;
             font-family: 'Inter', -apple-system, sans-serif;
+            border: 1px solid rgba(180, 200, 255, 0.7);
+            box-shadow: none;
         }
 
         .shortcut:hover .shortcut-icon {
-            transform: translateY(-2px);
             background: rgba(50, 58, 90, 0.6);
+            border: 1px solid rgba(200, 220, 255, 0.9);
         }
 
         .shortcut-label {
@@ -329,7 +331,7 @@
 <div class="container" id="app">
     <div class="brand">
         <div class="logo" id="mainLogo" title="双击添加网站 · 本地优先">aiksee</div>
-        <div class="slogan">见  未  见    ·   知  未  知    ·   行  未  行</div>
+        <div class="slogan">见  未  见   ·  知  未  知   ·  行  未  行</div>
     </div>
     
     <div class="shortcuts-wrapper">
@@ -367,7 +369,7 @@
     (function(){
         "use strict";
 
-        const STORAGE_KEY = 'aiksee_links_v8';
+        const STORAGE_KEY = 'aiksee_links_v10';
         let links = [];
 
         const defaultLinks = [
@@ -470,10 +472,10 @@
             return first;
         }
         
-        // 生成随机鲜艳颜色（HSL 方式）
+        // 生成随机鲜艳颜色（用于悬停发光）
         function getRandomGlowColor() {
             const hue = Math.random() * 360;
-            return `hsla(${hue}, 85%, 60%, 0.68)`;
+            return `hsla(${hue}, 85%, 65%, 0.75)`;
         }
         
         function loadLinks() {
@@ -551,18 +553,15 @@
                 let displayText = link.iconText;
                 if (displayText.length > 2) displayText = displayText.slice(0,2);
                 iconDiv.innerText = displayText;
+                iconDiv.style.boxShadow = 'none';
                 
-                // 为每个图标生成随机发光颜色
-                const glowColor = getRandomGlowColor();
-                const glowColorHover = glowColor.replace('0.1', '0.95');
-                iconDiv.style.boxShadow = `0 8px 20px rgba(0, 0, 0, 0.4), 0 0 15px ${glowColor}`;
-                
-                // 存储原始样式，方便 hover 时增强
+                // 鼠标悬停时随机彩色发光
                 card.addEventListener('mouseenter', () => {
-                    iconDiv.style.boxShadow = `0 8px 25px rgba(0, 0, 0, 0.5), 0 0 20px ${glowColorHover}`;
+                    const glowColor = getRandomGlowColor();
+                    iconDiv.style.boxShadow = `0 0 18px 4px ${glowColor}`;
                 });
                 card.addEventListener('mouseleave', () => {
-                    iconDiv.style.boxShadow = `0 8px 20px rgba(0, 0, 0, 0.4), 0 0 15px ${glowColor}`;
+                    iconDiv.style.boxShadow = 'none';
                 });
                 
                 const labelSpan = document.createElement('span');
@@ -570,6 +569,7 @@
                 labelSpan.innerText = link.title;
                 card.appendChild(iconDiv);
                 card.appendChild(labelSpan);
+                
                 card.addEventListener('click', (e) => {
                     if (contextMenu.classList.contains('show')) return;
                     window.open(link.url, '_blank');
