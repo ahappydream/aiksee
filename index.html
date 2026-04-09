@@ -11,7 +11,7 @@
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
-            /* 关键：禁止长按弹出菜单 */
+            /* 彻底禁止选择 */
             -webkit-touch-callout: none;
             user-select: none;
         }
@@ -30,10 +30,7 @@
             max-width: 720px;
             width: 100%;
             background: transparent;
-            backdrop-filter: none;
-            border-radius: 0;
             padding: 20px 12px 24px;
-            box-shadow: none;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
@@ -63,7 +60,7 @@
             color: #ffffff;
             cursor: pointer;
             display: inline-block;
-            transition: transform 0.15s ease, filter 0.2s;
+            transition: transform 0.15s ease;
             text-shadow: 0 0 30px rgba(100, 120, 255, 0.5);
         }
         .logo:active {
@@ -96,13 +93,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            text-decoration: none;
-            color: #e0e2f0;
             cursor: grab;
             padding: 6px 4px;
             border-radius: 20px;
             transition: all 0.2s ease;
-            -webkit-touch-callout: none;
             position: relative;
         }
         .shortcut:active { 
@@ -110,6 +104,7 @@
             transform: scale(0.96);
         }
 
+        /* 图标容器：使用 canvas 绘制文字，没有文本节点 */
         .shortcut-icon {
             width: 58px;
             height: 58px;
@@ -119,15 +114,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.7rem;
-            font-weight: 600;
-            color: #f0f2ff;
-            transition: all 0.2s ease;
-            pointer-events: none;
-            text-transform: uppercase;
-            font-family: 'Inter', -apple-system, sans-serif;
             border: 1px solid rgba(180, 200, 255, 0.7);
             box-shadow: none;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        canvas.icon-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 18px;
+            pointer-events: none;  /* 让 canvas 不拦截事件，由父级处理 */
         }
 
         .shortcut-label {
@@ -139,7 +136,6 @@
             white-space: nowrap;
             color: #b0b8e0;
             font-weight: 400;
-            pointer-events: none;
             letter-spacing: 0.3px;
             transition: color 0.2s ease;
         }
@@ -152,8 +148,6 @@
             padding-top: 18px;
             margin-top: 24px;
             line-height: 1.6;
-            letter-spacing: 0.3px;
-            flex-shrink: 0;
         }
 
         .empty-hint {
@@ -194,7 +188,6 @@
             font-size: 18px;
             font-weight: bold;
             color: #ff5a5a;
-            text-shadow: 0 0 3px rgba(255,0,0,0.5);
         }
 
         .confirm-pop {
@@ -233,9 +226,6 @@
         }
         .confirm-pop button.danger {
             background: #c05a5a;
-        }
-        .confirm-pop button:hover {
-            filter: brightness(1.2);
         }
 
         .modal-overlay {
@@ -287,7 +277,6 @@
             font-size: 1rem;
             outline: none;
             margin-bottom: 20px;
-            transition: border 0.15s;
         }
         .modal-input:focus {
             border-color: #7c8eff;
@@ -315,9 +304,6 @@
         .modal-btn.primary:hover {
             background: #8a9aff;
         }
-        .modal-btn:hover {
-            background: #3e435e;
-        }
     </style>
 </head>
 <body>
@@ -326,11 +312,9 @@
         <div class="logo" id="mainLogo" title="双击图标">aiksee</div>
         <div class="slogan">见 未 见 · 知 未 知 · 行 未 行</div>
     </div>
-    
     <div class="shortcuts-wrapper">
         <div id="shortcutsContainer" class="shortcuts-grid"></div>
     </div>
-    
     <div class="info">
         绝对本地 · 数据保密 · 没有打扰 · 就是舒畅<br>
         ✨ 双击图标 · 拖拽排序 · 长按删除 ✨
@@ -340,13 +324,11 @@
 <div id="deleteOverlay" class="delete-overlay">
     <div class="delete-icon">✕</div>
 </div>
-
 <div class="confirm-pop" id="confirmPop">
     <span id="confirmText">确定删除？</span>
     <button id="confirmYesBtn" class="danger">删除</button>
     <button id="confirmNoBtn">取消</button>
 </div>
-
 <div class="modal-overlay" id="addModal">
     <div class="modal-card">
         <div class="modal-title">📎 添加新网站</div>
@@ -362,36 +344,18 @@
     (function(){
         "use strict";
 
-        // ========== 强力屏蔽浏览器默认长按菜单（一次性解决）==========
-        // 方法1：禁止整个文档的 contextmenu 事件（右键/长按菜单）
+        // 全局屏蔽所有默认右键/长按菜单
         document.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             e.stopPropagation();
             return false;
         }, false);
-        
-        // 方法2：禁止所有 touchstart 事件的默认行为（但会阻止滚动，所以只针对特定条件）
-        // 更精细的控制：只阻止可能导致菜单的长按，不影响滚动
-        let preventMenuTimer = null;
+        // 额外针对 body 的长按
         document.body.addEventListener('touchstart', function(e) {
-            // 清除之前的计时器
-            if (preventMenuTimer) clearTimeout(preventMenuTimer);
-            // 设置一个标记，如果长按超过500ms，我们认为是要弹出菜单，就阻止
-            preventMenuTimer = setTimeout(() => {
-                // 如果长按发生在 shortcut 上，阻止默认行为
-                if (e.target.closest('.shortcut')) {
-                    e.preventDefault();
-                }
-            }, 300);
+            // 不做全局 preventDefault，保留滚动
         }, { passive: false });
-        
-        document.body.addEventListener('touchend', function() {
-            if (preventMenuTimer) clearTimeout(preventMenuTimer);
-        });
-        
-        // 方法3：CSS 已经设置了 -webkit-touch-callout: none
-        
-        const STORAGE_KEY = 'aiksee_links_v17';
+
+        const STORAGE_KEY = 'aiksee_links_v18_canvas';
         let links = [];
 
         const defaultLinks = [
@@ -407,12 +371,12 @@
             { url: 'https://www.douyin.com/', title: '抖音', iconText: '抖' }
         ];
 
+        // DOM 元素
         const modalOverlay = document.getElementById('addModal');
         const modalInput = document.getElementById('modalUrlInput');
         const modalCancel = document.getElementById('modalCancelBtn');
         const modalConfirm = document.getElementById('modalConfirmBtn');
         const logoElement = document.getElementById('mainLogo');
-
         const deleteOverlay = document.getElementById('deleteOverlay');
         const confirmPop = document.getElementById('confirmPop');
         const confirmText = document.getElementById('confirmText');
@@ -421,12 +385,12 @@
 
         let pendingDeleteIndex = -1;
         let pendingDeleteTitle = '';
-        
+
+        // 工具函数
         function hideDeleteOverlay() {
             deleteOverlay.classList.remove('show');
             pendingDeleteIndex = -1;
         }
-        
         function showDeleteOverlay(x, y, index, title) {
             pendingDeleteIndex = index;
             pendingDeleteTitle = title;
@@ -434,27 +398,21 @@
             deleteOverlay.style.top = (y - 25) + 'px';
             deleteOverlay.classList.add('show');
         }
-        
         function showConfirmPop(x, y) {
             confirmText.innerText = `确定删除 “${pendingDeleteTitle}” 吗？`;
             confirmPop.style.left = (x - 100) + 'px';
             confirmPop.style.top = (y + 20) + 'px';
             confirmPop.classList.add('show');
         }
-        
-        function hideConfirmPop() {
-            confirmPop.classList.remove('show');
-        }
-        
+        function hideConfirmPop() { confirmPop.classList.remove('show'); }
         function performDelete() {
-            if (pendingDeleteIndex !== -1) {
-                deleteLink(pendingDeleteIndex);
-            }
+            if (pendingDeleteIndex !== -1) deleteLink(pendingDeleteIndex);
             hideDeleteOverlay();
             hideConfirmPop();
             pendingDeleteIndex = -1;
         }
 
+        // 弹窗逻辑
         function openModal() {
             modalInput.value = 'https://www.';
             modalOverlay.classList.add('show');
@@ -478,22 +436,14 @@
             showConfirmPop(rect.right - 80, rect.top);
             deleteOverlay.classList.remove('show');
         });
-        
         confirmYesBtn.addEventListener('click', () => performDelete());
-        confirmNoBtn.addEventListener('click', () => { 
-            hideConfirmPop(); 
-            pendingDeleteIndex = -1;
-        });
-        
+        confirmNoBtn.addEventListener('click', () => { hideConfirmPop(); pendingDeleteIndex = -1; });
         document.addEventListener('click', (e) => {
-            if (!deleteOverlay.contains(e.target)) {
-                hideDeleteOverlay();
-            }
-            if (!confirmPop.contains(e.target)) {
-                hideConfirmPop();
-            }
+            if (!deleteOverlay.contains(e.target)) hideDeleteOverlay();
+            if (!confirmPop.contains(e.target)) hideConfirmPop();
         });
 
+        // 数据处理
         function getTitleFromUrl(url) {
             try {
                 const a = document.createElement('a');
@@ -509,12 +459,23 @@
             if (/[a-zA-Z]/.test(first)) return first.toUpperCase();
             return first;
         }
-        
         function getRandomColor() {
             const hue = Math.random() * 360;
             return `hsl(${hue}, 85%, 60%)`;
         }
-        
+
+        // 绘制 Canvas 文字
+        function drawIconText(canvas, text, color) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width; // 实际像素尺寸
+            ctx.clearRect(0, 0, size, size);
+            ctx.fillStyle = color || '#f0f2ff';
+            ctx.font = `bold ${size * 0.5}px "Inter", system-ui, -apple-system, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, size/2, size/2);
+        }
+
         function loadLinks() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
@@ -551,9 +512,9 @@
                 renderLinks();
             }
         }
-        
+
         let sortableInstance = null;
-        
+
         function renderLinks() {
             const container = document.getElementById('shortcutsContainer');
             container.innerHTML = '';
@@ -564,62 +525,70 @@
                 container.appendChild(emptyDiv);
                 return;
             }
-            
+
             links.forEach((link, idx) => {
                 const card = document.createElement('div');
                 card.className = 'shortcut';
                 card.setAttribute('data-index', idx);
-                
+
+                // 图标容器
                 const iconDiv = document.createElement('div');
                 iconDiv.className = 'shortcut-icon';
+                // 创建 canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 58;
+                canvas.height = 58;
+                canvas.classList.add('icon-canvas');
+                // 绘制初始文字
                 let displayText = link.iconText;
                 if (displayText.length > 2) displayText = displayText.slice(0,2);
-                iconDiv.innerText = displayText;
-                
+                drawIconText(canvas, displayText, '#f0f2ff');
+                iconDiv.appendChild(canvas);
+
+                // 下方文字标签
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'shortcut-label';
                 labelSpan.innerText = link.title;
+
                 card.appendChild(iconDiv);
                 card.appendChild(labelSpan);
-                
-                // 存储原始样式
+
+                // 存储原始边框样式
                 let originalBorder = '1px solid rgba(180, 200, 255, 0.7)';
                 let originalIconColor = '#f0f2ff';
                 let originalLabelColor = '#b0b8e0';
-                
+
+                // 悬停 / 触摸时改变样式（包括 canvas 文字颜色）
                 const applyHoverStyle = () => {
                     const color = getRandomColor();
                     iconDiv.style.border = `2px solid ${color}`;
                     iconDiv.style.boxShadow = `0 0 18px 6px ${color}`;
-                    iconDiv.style.color = color;
                     labelSpan.style.color = color;
+                    // 重新绘制 canvas 文字为相同颜色
+                    drawIconText(canvas, displayText, color);
                 };
-                
                 const removeHoverStyle = () => {
                     iconDiv.style.border = originalBorder;
                     iconDiv.style.boxShadow = 'none';
-                    iconDiv.style.color = originalIconColor;
                     labelSpan.style.color = originalLabelColor;
+                    drawIconText(canvas, displayText, originalIconColor);
                 };
-                
+
                 card.addEventListener('mouseenter', applyHoverStyle);
                 card.addEventListener('mouseleave', removeHoverStyle);
-                
-                card.addEventListener('touchstart', (e) => {
-                    applyHoverStyle();
-                }, { passive: true });
+                card.addEventListener('touchstart', applyHoverStyle, { passive: true });
                 card.addEventListener('touchend', removeHoverStyle);
                 card.addEventListener('touchcancel', removeHoverStyle);
-                
+
+                // 点击打开链接
                 card.addEventListener('click', (e) => {
                     if (deleteOverlay.classList.contains('show')) return;
                     window.open(link.url, '_blank');
                 });
-                
+
+                // 长按删除
                 let pressTimer = null;
-                let pressStartX = 0;
-                let pressStartY = 0;
-                
+                let pressStartX = 0, pressStartY = 0;
                 const startPress = (clientX, clientY) => {
                     pressStartX = clientX;
                     pressStartY = clientY;
@@ -629,21 +598,14 @@
                         pressTimer = null;
                     }, 800);
                 };
-                
                 const cancelPress = () => {
-                    if (pressTimer) {
-                        clearTimeout(pressTimer);
-                        pressTimer = null;
-                    }
+                    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
                 };
-                
-                card.addEventListener('mousedown', (e) => {
-                    if (e.button !== 0) return;
-                    startPress(e.clientX, e.clientY);
-                });
+                // 鼠标事件
+                card.addEventListener('mousedown', (e) => { if (e.button === 0) startPress(e.clientX, e.clientY); });
                 card.addEventListener('mouseup', cancelPress);
                 card.addEventListener('mouseleave', cancelPress);
-                
+                // 触摸事件
                 card.addEventListener('touchstart', (e) => {
                     const touch = e.touches[0];
                     startPress(touch.clientX, touch.clientY);
@@ -651,22 +613,18 @@
                 card.addEventListener('touchmove', (e) => {
                     if (pressTimer) {
                         const touch = e.touches[0];
-                        const moveX = Math.abs(touch.clientX - pressStartX);
-                        const moveY = Math.abs(touch.clientY - pressStartY);
-                        if (moveX > 10 || moveY > 10) {
-                            cancelPress();
-                        }
+                        const dx = Math.abs(touch.clientX - pressStartX);
+                        const dy = Math.abs(touch.clientY - pressStartY);
+                        if (dx > 10 || dy > 10) cancelPress();
                     }
                 });
                 card.addEventListener('touchend', cancelPress);
                 card.addEventListener('touchcancel', cancelPress);
-                
+
                 container.appendChild(card);
             });
-            
-            if (sortableInstance) {
-                sortableInstance.destroy();
-            }
+
+            if (sortableInstance) sortableInstance.destroy();
             sortableInstance = new Sortable(container, {
                 animation: 200,
                 onEnd: function() {
@@ -684,7 +642,7 @@
                 }
             });
         }
-        
+
         loadLinks();
     })();
 </script>
