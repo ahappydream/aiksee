@@ -11,6 +11,8 @@
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            /* 关键：禁止长按弹出菜单 */
+            -webkit-touch-callout: none;
             user-select: none;
         }
 
@@ -165,7 +167,6 @@
             backdrop-filter: blur(4px);
         }
 
-        /* 删除小叉叉 - 缩小尺寸 */
         .delete-overlay {
             position: fixed;
             background: rgba(30, 33, 50, 0.95);
@@ -361,7 +362,36 @@
     (function(){
         "use strict";
 
-        const STORAGE_KEY = 'aiksee_links_v16';
+        // ========== 强力屏蔽浏览器默认长按菜单（一次性解决）==========
+        // 方法1：禁止整个文档的 contextmenu 事件（右键/长按菜单）
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }, false);
+        
+        // 方法2：禁止所有 touchstart 事件的默认行为（但会阻止滚动，所以只针对特定条件）
+        // 更精细的控制：只阻止可能导致菜单的长按，不影响滚动
+        let preventMenuTimer = null;
+        document.body.addEventListener('touchstart', function(e) {
+            // 清除之前的计时器
+            if (preventMenuTimer) clearTimeout(preventMenuTimer);
+            // 设置一个标记，如果长按超过500ms，我们认为是要弹出菜单，就阻止
+            preventMenuTimer = setTimeout(() => {
+                // 如果长按发生在 shortcut 上，阻止默认行为
+                if (e.target.closest('.shortcut')) {
+                    e.preventDefault();
+                }
+            }, 300);
+        }, { passive: false });
+        
+        document.body.addEventListener('touchend', function() {
+            if (preventMenuTimer) clearTimeout(preventMenuTimer);
+        });
+        
+        // 方法3：CSS 已经设置了 -webkit-touch-callout: none
+        
+        const STORAGE_KEY = 'aiksee_links_v17';
         let links = [];
 
         const defaultLinks = [
@@ -485,21 +515,6 @@
             return `hsl(${hue}, 85%, 60%)`;
         }
         
-        // 全局阻止手机端长按浏览器菜单
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
-        
-        // 阻止所有触摸点的默认长按行为
-        document.body.addEventListener('touchstart', function(e) {
-            // 不阻止所有，只阻止可能导致菜单的
-            if (e.target.closest('.shortcut')) {
-                // 允许长按检测，但不让浏览器弹出菜单
-                // 通过 css -webkit-touch-callout 已经处理了一部分
-            }
-        }, { passive: false });
-        
         function loadLinks() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
@@ -572,7 +587,6 @@
                 let originalIconColor = '#f0f2ff';
                 let originalLabelColor = '#b0b8e0';
                 
-                // 鼠标悬停/触摸时：随机颜色应用到边框、发光、图标文字、底部文字
                 const applyHoverStyle = () => {
                     const color = getRandomColor();
                     iconDiv.style.border = `2px solid ${color}`;
@@ -588,24 +602,20 @@
                     labelSpan.style.color = originalLabelColor;
                 };
                 
-                // 鼠标事件
                 card.addEventListener('mouseenter', applyHoverStyle);
                 card.addEventListener('mouseleave', removeHoverStyle);
                 
-                // 触摸事件（手机端）- 应用悬停样式，但不阻止长按
                 card.addEventListener('touchstart', (e) => {
                     applyHoverStyle();
                 }, { passive: true });
                 card.addEventListener('touchend', removeHoverStyle);
                 card.addEventListener('touchcancel', removeHoverStyle);
                 
-                // 点击打开链接
                 card.addEventListener('click', (e) => {
                     if (deleteOverlay.classList.contains('show')) return;
                     window.open(link.url, '_blank');
                 });
                 
-                // 长按删除（电脑端和手机端统一处理）
                 let pressTimer = null;
                 let pressStartX = 0;
                 let pressStartY = 0;
@@ -627,7 +637,6 @@
                     }
                 };
                 
-                // 电脑端鼠标事件
                 card.addEventListener('mousedown', (e) => {
                     if (e.button !== 0) return;
                     startPress(e.clientX, e.clientY);
@@ -635,7 +644,6 @@
                 card.addEventListener('mouseup', cancelPress);
                 card.addEventListener('mouseleave', cancelPress);
                 
-                // 手机端触摸事件
                 card.addEventListener('touchstart', (e) => {
                     const touch = e.touches[0];
                     startPress(touch.clientX, touch.clientY);
