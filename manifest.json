@@ -1,0 +1,21 @@
+﻿﻿{
+    "name": "aiksee",
+    "short_name": "aiksee",
+    "description": "见未见 · 知未见 · 行未行 | 你的专属导航",
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#0a0f1e",
+    "background_color": "#0a0f1e",
+    "icons": [
+      {
+        "src": "https://ahappydream.github.io/aiksee/icon-192.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      },
+      {
+        "src": "https://ahappydream.github.io/aiksee/icon-512.png",
+        "sizes": "512x512",
+        "type": "image/png"
+      }
+    ]
+  }
