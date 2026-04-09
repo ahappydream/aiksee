@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
@@ -11,7 +11,6 @@
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
-            /* 彻底禁止选择 */
             -webkit-touch-callout: none;
             user-select: none;
         }
@@ -104,7 +103,6 @@
             transform: scale(0.96);
         }
 
-        /* 图标容器：使用 canvas 绘制文字，没有文本节点 */
         .shortcut-icon {
             width: 58px;
             height: 58px;
@@ -124,7 +122,7 @@
             height: 100%;
             display: block;
             border-radius: 18px;
-            pointer-events: none;  /* 让 canvas 不拦截事件，由父级处理 */
+            pointer-events: none;
         }
 
         .shortcut-label {
@@ -148,6 +146,28 @@
             padding-top: 18px;
             margin-top: 24px;
             line-height: 1.6;
+        }
+
+        /* 安装指引按钮样式 */
+        .install-guide {
+            margin-top: 16px;
+            text-align: center;
+        }
+        .install-btn {
+            background: #6c7eff;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .manual-guide-text {
+            font-size: 0.7rem;
+            color: #8e9acf;
+            margin-top: 8px;
+            line-height: 1.5;
         }
 
         .empty-hint {
@@ -326,6 +346,12 @@
         绝对本地 · 数据保密 · 没有打扰 · 就是舒畅<br>
         ✨ 双击图标 · 拖拽排序 · 长按删除 ✨
     </div>
+    
+    <!-- 安装指引区域 -->
+    <div id="installGuide" class="install-guide" style="display: none;">
+        <button id="installBtn" class="install-btn">📱 安装应用到桌面</button>
+        <div id="manualGuide" class="manual-guide-text"></div>
+    </div>
 </div>
 
 <div id="deleteOverlay" class="delete-overlay">
@@ -351,16 +377,64 @@
     (function(){
         "use strict";
 
+        // PWA 安装指引逻辑
+        let deferredPrompt;
+        const installGuide = document.getElementById('installGuide');
+        const installBtn = document.getElementById('installBtn');
+        const manualGuide = document.getElementById('manualGuide');
+
+        function showManualGuide() {
+            installGuide.style.display = 'block';
+            if (installBtn) installBtn.style.display = 'none';
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isChrome = /Chrome/.test(navigator.userAgent);
+            if (isAndroid) {
+                manualGuide.innerHTML = `📱 安卓安装步骤：<br>
+                    1. 点击浏览器右上角 "⋮" 菜单<br>
+                    2. 选择 "添加到主屏幕"<br>
+                    3. 如无法安装，请在系统设置-应用-Chrome-权限中开启"创建桌面快捷方式"`;
+            } else {
+                manualGuide.innerHTML = `📱 请通过浏览器菜单将应用添加到主屏幕`;
+            }
+            manualGuide.style.display = 'block';
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installGuide.style.display = 'block';
+            manualGuide.style.display = 'none';
+            if (installBtn) installBtn.style.display = 'block';
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        console.log('用户接受了PWA安装');
+                    }
+                    deferredPrompt = null;
+                    installGuide.style.display = 'none';
+                } else {
+                    showManualGuide();
+                }
+            });
+        }
+
+        setTimeout(() => {
+            if (!deferredPrompt) {
+                showManualGuide();
+            }
+        }, 1000);
+
         // 全局屏蔽所有默认右键/长按菜单
         document.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             e.stopPropagation();
             return false;
         }, false);
-        // 额外针对 body 的长按
-        document.body.addEventListener('touchstart', function(e) {
-            // 不做全局 preventDefault，保留滚动
-        }, { passive: false });
 
         const STORAGE_KEY = 'aiksee_links_v18_canvas';
         let links = [];
@@ -378,7 +452,6 @@
             { url: 'https://www.douyin.com/', title: '抖音', iconText: '抖' }
         ];
 
-        // DOM 元素
         const modalOverlay = document.getElementById('addModal');
         const modalInput = document.getElementById('modalUrlInput');
         const modalCancel = document.getElementById('modalCancelBtn');
@@ -393,7 +466,6 @@
         let pendingDeleteIndex = -1;
         let pendingDeleteTitle = '';
 
-        // 工具函数
         function hideDeleteOverlay() {
             deleteOverlay.classList.remove('show');
             pendingDeleteIndex = -1;
@@ -419,7 +491,6 @@
             pendingDeleteIndex = -1;
         }
 
-        // 弹窗逻辑
         function openModal() {
             modalInput.value = 'https://www.';
             modalOverlay.classList.add('show');
@@ -450,7 +521,6 @@
             if (!confirmPop.contains(e.target)) hideConfirmPop();
         });
 
-        // 数据处理
         function getTitleFromUrl(url) {
             try {
                 const a = document.createElement('a');
@@ -471,10 +541,9 @@
             return `hsl(${hue}, 85%, 60%)`;
         }
 
-        // 绘制 Canvas 文字
         function drawIconText(canvas, text, color) {
             const ctx = canvas.getContext('2d');
-            const size = canvas.width; // 实际像素尺寸
+            const size = canvas.width;
             ctx.clearRect(0, 0, size, size);
             ctx.fillStyle = color || '#f0f2ff';
             ctx.font = `bold ${size * 0.5}px "Inter", system-ui, -apple-system, sans-serif`;
@@ -538,21 +607,17 @@
                 card.className = 'shortcut';
                 card.setAttribute('data-index', idx);
 
-                // 图标容器
                 const iconDiv = document.createElement('div');
                 iconDiv.className = 'shortcut-icon';
-                // 创建 canvas
                 const canvas = document.createElement('canvas');
                 canvas.width = 58;
                 canvas.height = 58;
                 canvas.classList.add('icon-canvas');
-                // 绘制初始文字
                 let displayText = link.iconText;
                 if (displayText.length > 2) displayText = displayText.slice(0,2);
                 drawIconText(canvas, displayText, '#f0f2ff');
                 iconDiv.appendChild(canvas);
 
-                // 下方文字标签
                 const labelSpan = document.createElement('span');
                 labelSpan.className = 'shortcut-label';
                 labelSpan.innerText = link.title;
@@ -560,18 +625,15 @@
                 card.appendChild(iconDiv);
                 card.appendChild(labelSpan);
 
-                // 存储原始边框样式
                 let originalBorder = '1px solid rgba(180, 200, 255, 0.7)';
                 let originalIconColor = '#f0f2ff';
                 let originalLabelColor = '#b0b8e0';
 
-                // 悬停 / 触摸时改变样式（包括 canvas 文字颜色）
                 const applyHoverStyle = () => {
                     const color = getRandomColor();
                     iconDiv.style.border = `2px solid ${color}`;
                     iconDiv.style.boxShadow = `0 0 18px 6px ${color}`;
                     labelSpan.style.color = color;
-                    // 重新绘制 canvas 文字为相同颜色
                     drawIconText(canvas, displayText, color);
                 };
                 const removeHoverStyle = () => {
@@ -587,13 +649,11 @@
                 card.addEventListener('touchend', removeHoverStyle);
                 card.addEventListener('touchcancel', removeHoverStyle);
 
-                // 点击打开链接
                 card.addEventListener('click', (e) => {
                     if (deleteOverlay.classList.contains('show')) return;
                     window.open(link.url, '_blank');
                 });
 
-                // 长按删除
                 let pressTimer = null;
                 let pressStartX = 0, pressStartY = 0;
                 const startPress = (clientX, clientY) => {
@@ -608,11 +668,9 @@
                 const cancelPress = () => {
                     if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
                 };
-                // 鼠标事件
                 card.addEventListener('mousedown', (e) => { if (e.button === 0) startPress(e.clientX, e.clientY); });
                 card.addEventListener('mouseup', cancelPress);
                 card.addEventListener('mouseleave', cancelPress);
-                // 触摸事件
                 card.addEventListener('touchstart', (e) => {
                     const touch = e.touches[0];
                     startPress(touch.clientX, touch.clientY);
